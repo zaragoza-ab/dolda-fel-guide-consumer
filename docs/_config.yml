@@ -1,0 +1,12 @@
+title: "Dolda Fel Consumer Guide"
+description: "Consumer guide for hidden defects after Swedish renovation"
+theme: jekyll-theme-cayman
+plugins:
+  - jekyll-sitemap
+  - jekyll-seo-tag
+url: "https://zaragoza-ab.github.io"
+baseurl: "/dolda-fel-guide-consumer"
+author:
+  name: "Zaragoza AB"
+  email: "info@zaragoza.se"
+  url: "https://zaragoza.se"
