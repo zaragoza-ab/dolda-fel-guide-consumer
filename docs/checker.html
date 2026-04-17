@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dolda Fel-kontroll — Är mitt fel ersättningsbart? | Zaragoza AB</title>
+<meta name="description" content="Interaktivt verktyg — kontrollera om ett fel i din bostad/renovering räknas som dolt fel enligt Konsumenttjänstlagen eller Jordabalken. Av Zaragoza AB, Helsingborg.">
+<link rel="canonical" href="https://zaragoza-ab.github.io/dolda-fel-guide-consumer/checker.html">
+
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org","@type":"WebApplication",
+  "name":"Dolda Fel-kontroll","url":"https://zaragoza-ab.github.io/dolda-fel-guide-consumer/checker.html",
+  "applicationCategory":"LegalApplication","operatingSystem":"Any (web)",
+  "offers":{"@type":"Offer","price":"0","priceCurrency":"SEK"},
+  "author":{"@type":"Organization","name":"Zaragoza AB","url":"https://zaragoza.se","telephone":"+46737245628",
+    "address":{"@type":"PostalAddress","addressLocality":"Helsingborg","addressRegion":"Skåne","addressCountry":"SE"}},
+  "inLanguage":"sv"
+}
+</script>
+
+<style>
+  :root { --bg:#f7f5f1; --fg:#1a1a1a; --accent:#6b4a2d; --muted:#666; --border:#ddd; --card:#fff; --good:#2d6b4a; --bad:#b33; }
+  * { box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--fg); margin:0; line-height:1.6; }
+  header { background:var(--accent); color:#fff; padding:28px 20px; text-align:center; }
+  header h1 { margin:0 0 6px; font-size:1.65em; }
+  main { max-width:780px; margin:28px auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:22px; margin-bottom:20px; box-shadow:0 2px 8px rgba(0,0,0,0.04); }
+  .q-text { font-size:1.15em; font-weight:600; margin:0 0 16px; }
+  button { background:var(--accent); color:#fff; border:0; padding:12px 20px; font-size:1em; border-radius:6px; cursor:pointer; margin-right:10px; margin-bottom:8px; }
+  button:hover { opacity:0.88; }
+  button.secondary { background:#888; }
+  .progress { height:6px; background:#eee; border-radius:3px; margin-bottom:20px; overflow:hidden; }
+  .bar { background:var(--accent); height:100%; transition:width 0.3s; }
+  .verdict { padding:18px; border-radius:6px; margin-top:10px; }
+  .verdict.good { background:#eaf3ed; border-left:4px solid var(--good); }
+  .verdict.bad { background:#f9ecec; border-left:4px solid var(--bad); }
+  .verdict.maybe { background:#fff6e5; border-left:4px solid #b80; }
+  .verdict h3 { margin-top:0; }
+  .law { font-size:0.88em; color:var(--muted); font-style:italic; }
+  .restart { text-align:center; margin:20px 0; }
+  footer { text-align:center; padding:30px 20px; color:var(--muted); font-size:0.88em; }
+  footer a { color:var(--accent); }
+  ul.next-steps li { margin-bottom:6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dolda Fel-kontroll</h1>
+  <p>Är ditt fel ersättningsbart enligt svensk lag?</p>
+</header>
+
+<main>
+  <div class="progress"><div class="bar" id="bar" style="width:0%"></div></div>
+  <div class="card" id="step"></div>
+</main>
+
+<footer>
+  <p>Juridisk information, ingen juridisk rådgivning. Vid komplexa ärenden: konsumentvägledning i din kommun, ARN, eller advokat.</p>
+  <p>Öppen källkod: <a href="https://github.com/zaragoza-ab/dolda-fel-guide-consumer">github.com/zaragoza-ab/dolda-fel-guide-consumer</a></p>
+  <p>Maintained by <a href="https://zaragoza.se">Zaragoza AB</a>, Helsingborg · <a href="tel:+46737245628">+46 73 724 56 28</a> · <a href="mailto:info@zaragoza.se">info@zaragoza.se</a></p>
+</footer>
+
+<script>
+// Decision tree. Each node: id, question, answers[{text, next}], or verdict.
+const TREE = {
+  'start': {
+    q: 'Gäller ditt ärende en renovering/entreprenad eller ett hus du köpt?',
+    a: [
+      { t: 'Renovering/entreprenad utförd av byggfirma', next: 'service-timing' },
+      { t: 'Hus eller bostadsrätt jag köpt', next: 'purchase-year' },
+    ]
+  },
+
+  // --- SERVICE / CONTRACTOR PATH (KTjL) ---
+  'service-timing': {
+    q: 'När upptäckte du felet?',
+    a: [
+      { t: 'Vid slutbesiktningen eller inom några månader', next: 'service-reklamation' },
+      { t: 'Inom 2 år efter avslutat arbete', next: 'service-warranty-2y' },
+      { t: '2-5 år efter avslutat arbete', next: 'service-warranty-5y' },
+      { t: 'Mer än 5 år efter', next: 'service-ten-year' },
+    ]
+  },
+  'service-reklamation': {
+    q: 'Har du reklamerat skriftligt till entreprenören?',
+    a: [
+      { t: 'Ja, skriftligt', next: 'service-response' },
+      { t: 'Nej, bara muntligt', next: 'service-write-first' },
+      { t: 'Nej, inte alls', next: 'service-write-first' },
+    ]
+  },
+  'service-write-first': {
+    verdict: 'maybe',
+    title: 'Reklamera skriftligt först',
+    body: `<p>Enligt Konsumenttjänstlagen (KTjL) 17 § ska fel reklameras skriftligt "inom skälig tid" efter upptäckten. Rekommendation: skriv brev eller mejl direkt.</p>
+    <h4>Mall</h4>
+    <p><a href="./templates/reklamation-brev.md" target="_blank">Reklamationsbrev-mall</a> finns här.</p>
+    <p class="law">KTjL 17 § · KTjL 20-23 §§ (åtgärder vid fel)</p>`,
+    next: 'restart'
+  },
+  'service-response': {
+    q: 'Hur svarade entreprenören?',
+    a: [
+      { t: 'Accepterade och åtgärdade', next: 'service-resolved' },
+      { t: 'Accepterade men dröjer/åtgärdar slarvigt', next: 'service-escalate' },
+      { t: 'Avslog reklamationen', next: 'service-denied' },
+      { t: 'Svarade inte alls', next: 'service-denied' },
+    ]
+  },
+  'service-resolved': {
+    verdict: 'good',
+    title: 'Ärendet löst',
+    body: `<p>Bra! Entreprenören har uppfyllt sin skyldighet enligt KTjL 20-23 §§ (avhjälpande, nytt utförande, prisavdrag, hävning).</p>
+    <p>Spara all dokumentation i 5 år för framtida behov.</p>`,
+    next: 'restart'
+  },
+  'service-escalate': {
+    verdict: 'maybe',
+    title: 'Eskalera ärendet',
+    body: `<p>Entreprenören har plikt att åtgärda inom "skälig tid". Om det dröjer:</p>
+    <ol>
+      <li>Sätt ut en skriftlig deadline (t.ex. 30 dagar)</li>
+      <li>Om deadline missas: begär prisavdrag eller annan firmas åtgärd på entreprenörens bekostnad (KTjL 20 §)</li>
+      <li>Innan slutbetalning: håll innetag motsvarande 2× åtgärdskostnad (KTjL 19 §)</li>
+      <li>Anmäl till ARN (arn.se) om >29 400 SEK tvist</li>
+    </ol>
+    <p class="law">KTjL 19-20 §§ · ARN-anmälan gratis</p>`,
+    next: 'restart'
+  },
+  'service-denied': {
+    verdict: 'maybe',
+    title: 'Entreprenör avslog — dina alternativ',
+    body: `<p>Om du är övertygad om att felet föreligger enligt KTjL:</p>
+    <ol>
+      <li><strong>Bevisa felet:</strong> besiktningsman (SBR/RISE) tar intyg. Kostnad 8-15k SEK, återbetalas om du vinner.</li>
+      <li><strong>Kontakta Konsumentvägledningen</strong> i din kommun — gratis juridisk hjälp.</li>
+      <li><strong>ARN (arn.se)</strong> — gratis konsumenttvistprövning (bindande för företag). Tidsgräns: 1 år från företagets sista svar.</li>
+      <li><strong>Tingsrätt</strong> — småmål upp till ~29 400 SEK enkel process. Över det: risk för rättegångskostnader.</li>
+      <li><strong>Om rättsskyddsförsäkring via hemförsäkring</strong>: täcker ofta ombudskostnader vid stora tvister.</li>
+    </ol>
+    <p class="law">KTjL 9-17 §§ · ARN · Lag om rättegångskostnader</p>`,
+    next: 'restart'
+  },
+  'service-warranty-2y': {
+    verdict: 'good',
+    title: 'Inom 2-årsgarantin (AB 04) eller 5-årsgaranti (ABS 18)',
+    body: `<p>Du är inom garantitiden. Entreprenören ska bevisa att fel INTE orsakats av dennes arbete — bevisbördan ligger på firman.</p>
+    <p>Reklamera skriftligt omgående. Mall: <a href="./templates/reklamation-brev.md">reklamation-brev.md</a></p>
+    <p class="law">AB 04 kap. 5 § 8 · ABS 18 pkt 15 · KTjL 17-23 §§</p>`,
+    next: 'restart'
+  },
+  'service-warranty-5y': {
+    verdict: 'maybe',
+    title: 'Mellan 2 och 5 år — beror på kontraktstyp',
+    body: `<p><strong>ABS 18 (konsumententreprenad):</strong> du är fortfarande inom 5-årsgarantin. Reklamera skriftligt.</p>
+    <p><strong>AB 04 (kommersiellt):</strong> garantin är 2 år (+ 10 år vid vårdslöshet). Du måste bevisa vårdslöshet.</p>
+    <p>Kontrollera ditt kontrakt: står det "ABS 18" eller "AB 04"?</p>
+    <p class="law">ABS 18 pkt 15 · AB 04 kap. 5 §§ 6-9</p>`,
+    next: 'restart'
+  },
+  'service-ten-year': {
+    verdict: 'maybe',
+    title: 'Över 5 år — bara vid vårdslöshet/grovt fel',
+    body: `<p>Efter 5 år är en reklamation möjlig endast om du kan bevisa att felet:</p>
+    <ul>
+      <li>Beror på entreprenörens vårdslöshet eller grovt fel, ELLER</li>
+      <li>Är ett "väsentligt fel" som påverkar säkerhet/hälsa</li>
+    </ul>
+    <p>Preskription enligt Preskriptionslagen: 10 år för allmänna fordringar, ibland längre. Ett besiktningsutlåtande är avgörande.</p>
+    <p class="law">Preskriptionslagen · KTjL 17 § · NJA 2013 s. 524</p>`,
+    next: 'restart'
+  },
+
+  // --- PURCHASE PATH (Jordabalken) ---
+  'purchase-year': {
+    q: 'När köpte du bostaden?',
+    a: [
+      { t: 'För mindre än 10 år sedan (villa/radhus)', next: 'purchase-jb-check' },
+      { t: 'För mindre än 2 år sedan (bostadsrätt)', next: 'purchase-br-check' },
+      { t: 'Längre sedan', next: 'purchase-too-late' },
+    ]
+  },
+  'purchase-jb-check': {
+    q: 'Gjorde du en överlåtelsebesiktning?',
+    a: [
+      { t: 'Ja, besiktning gjordes', next: 'purchase-besiktning-result' },
+      { t: 'Nej, ingen besiktning', next: 'purchase-no-besiktning' },
+    ]
+  },
+  'purchase-besiktning-result': {
+    q: 'Står felet i besiktningsprotokollet eller noteras som observation?',
+    a: [
+      { t: 'Ja, nämns eller antyds', next: 'purchase-noted' },
+      { t: 'Nej, inget som tyder på det', next: 'purchase-hidden' },
+    ]
+  },
+  'purchase-hidden': {
+    verdict: 'good',
+    title: 'Det kan vara ett dolt fel',
+    body: `<p>För att kvalificera som dolt fel enligt Jordabalken 4 kap. 19 § krävs:</p>
+    <ul>
+      <li>✅ Fel fanns vid tillträdet</li>
+      <li>✅ Kunde ej upptäckas vid normal besiktning</li>
+      <li>✅ Felet avviker från vad du rimligen kunnat förvänta dig för åldern/priset</li>
+    </ul>
+    <h4>Steg:</h4>
+    <ol>
+      <li>Reklamera skriftligt till säljaren (helst rekommenderat brev)</li>
+      <li>Beställ ny besiktning som bevisar felet (kostnad 8-15k SEK)</li>
+      <li>Kontakta mäklarens ansvarsförsäkring om mäklaren missade synliga varningstecken</li>
+      <li>Om säljaren inte betalar: ARN (för mindre fel) eller tingsrätt (större)</li>
+    </ol>
+    <p class="law">JB 4 kap. 19 § · Preskription: 10 år från tillträde</p>`,
+    next: 'restart'
+  },
+  'purchase-noted': {
+    verdict: 'bad',
+    title: 'Förmodligen inte dolt fel',
+    body: `<p>Eftersom felet eller tecken på det noterats i besiktningsprotokollet räknas det INTE som dolt — du hade undersökningsplikt och besiktningen uppfyllde den.</p>
+    <p>Möjliga undantag:</p>
+    <ul>
+      <li>Om besiktningsmannen var slarvig (ev. krav mot besiktningsmannens ansvarsförsäkring)</li>
+      <li>Om felet är betydligt större än besiktningen antydde (prata med jurist)</li>
+    </ul>
+    <p class="law">JB 4 kap. 19 § · Undersökningsplikt</p>`,
+    next: 'restart'
+  },
+  'purchase-no-besiktning': {
+    verdict: 'bad',
+    title: 'Svårt utan besiktning',
+    body: `<p>Utan överlåtelsebesiktning är din undersökningsplikt bevisligen inte uppfylld. Det blir svårt att hävda dolt fel, eftersom du inte kan visa att felet <em>inte</em> kunde upptäckas.</p>
+    <p>Möjliga vägar:</p>
+    <ul>
+      <li>Om säljaren uttryckligen <em>förnekade</em> felet ("taket läcker inte!") — detta är kontraktsbrott oavsett besiktning</li>
+      <li>Om felet är osynligt/omöjligt att upptäcka även med besiktning</li>
+    </ul>
+    <p>Rådgör med konsumentvägledare eller jurist.</p>
+    <p class="law">JB 4 kap. 19 § · Undersökningsplikt vid köp av fast egendom</p>`,
+    next: 'restart'
+  },
+  'purchase-br-check': {
+    verdict: 'maybe',
+    title: 'Bostadsrätt — olika regelverk',
+    body: `<p>Bostadsrätter regleras av Bostadsrättslagen (BrL), inte Jordabalken. Reklamationstid: oftast 2 år från tillträde (BrL 6 kap. 4 §).</p>
+    <p>Fel i gemensamma delar (fasad, stamrör, yttertak) är föreningens ansvar. Fel i lägenheten (ytskikt, inre VVS enligt stadgarna) är ditt ansvar att reklamera till säljaren.</p>
+    <p class="law">BrL 6 kap. 4 § · Föreningens stadgar</p>`,
+    next: 'restart'
+  },
+  'purchase-too-late': {
+    verdict: 'bad',
+    title: 'Preskriberat',
+    body: `<p>Efter 10 år (villa per Jordabalken) eller 2 år (bostadsrätt per BrL) preskriberas rätten att hävda dolt fel.</p>
+    <p>Undantag: om säljaren aktivt vilseledde dig kan det vara bedrägeri — ingen preskription. Prata med jurist.</p>
+    <p class="law">Preskriptionslagen · JB 4 kap. · BrL 6 kap.</p>`,
+    next: 'restart'
+  },
+
+  'restart': {
+    q: 'Vill du göra en ny kontroll eller få mer information?',
+    a: [
+      { t: 'Börja om', next: 'start' },
+      { t: 'Kontakta konsumentvägledning', next: 'help' },
+      { t: 'Hitta besiktningsman', next: 'inspector' },
+    ]
+  },
+  'help': {
+    verdict: 'good',
+    title: 'Konsumenthjälp — gratis',
+    body: `<ul>
+      <li><a href="https://www.hallakonsument.se" target="_blank">Hallå konsument</a> — rikstäckande rådgivning</li>
+      <li>Din kommuns konsumentvägledning (sök "konsumentvägledning [din kommun]")</li>
+      <li><a href="https://www.arn.se" target="_blank">ARN</a> — för bindande tvistprövning (gratis)</li>
+      <li><a href="https://www.konsumentverket.se" target="_blank">Konsumentverket</a></li>
+      <li><a href="https://www.villaagarna.se" target="_blank">Villaägarna</a> — juridisk hjälp för medlemmar</li>
+      <li><a href="https://zaragoza.se" target="_blank">Zaragoza AB</a> — vi gör konsumentrenoveringar per ABS 18 i Helsingborg</li>
+    </ul>`,
+    next: 'restart'
+  },
+  'inspector': {
+    verdict: 'good',
+    title: 'Hitta certifierad besiktningsman',
+    body: `<ul>
+      <li><a href="https://www.sbr.se" target="_blank">SBR (Svenska Byggingenjörers Riksförbund)</a> — certifierade besiktningsmän</li>
+      <li><a href="https://www.ri.se" target="_blank">RISE</a> — certifieringskatalog</li>
+      <li><a href="https://www.byggingenjorerna.se" target="_blank">Byggingenjörerna</a></li>
+      <li>Typiskt pris: 8-18k SEK för villa</li>
+      <li>Zaragoza AB rekommenderar certifierade besiktningsmän i Skåne vid behov</li>
+    </ul>`,
+    next: 'restart'
+  }
+};
+
+let currentId = 'start';
+let stepCount = 0;
+
+function render(id) {
+  currentId = id;
+  const node = TREE[id];
+  const stepEl = document.getElementById('step');
+  const barEl = document.getElementById('bar');
+
+  stepCount++;
+  barEl.style.width = Math.min(100, stepCount * 20) + '%';
+
+  if (node.verdict) {
+    const cls = node.verdict;
+    stepEl.innerHTML = `
+      <div class="verdict ${cls}">
+        <h3>${node.title}</h3>
+        ${node.body}
+      </div>
+      <div class="restart">
+        <button onclick="reset()">Börja om</button>
+      </div>
+    `;
+  } else {
+    stepEl.innerHTML = `
+      <p class="q-text">${node.q}</p>
+      <div>${node.a.map((a, i) => `<button onclick="render('${a.next}')">${a.t}</button>`).join('')}</div>
+    `;
+  }
+}
+
+function reset() {
+  stepCount = 0;
+  render('start');
+}
+
+render('start');
+</script>
+
+</body>
+</html>
